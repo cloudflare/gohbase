@@ -216,6 +216,10 @@ type Client struct {
 
 	// The timeout before flushing the RPC queue in the region client
 	flushInterval time.Duration
+	
+	// Master and Meta resource names
+	master zk.ResourceName
+	meta   zk.ResourceName
 }
 
 // NewClient creates a new HBase client.
@@ -265,6 +269,20 @@ func FlushInterval(interval time.Duration) Option {
 func Admin() Option {
 	return func(c *Client) {
 		c.clientType = AdminClient
+	}
+}
+
+// Options for specifying master resource name (e.g. "/hbase/master")
+func SetMaster(master zk.Resource) {
+	return func(c *Client) {
+		c.master = master
+	}
+}
+
+// Options for specifying meta resource name (e.g. "/hbase/meta-region-server")
+func SetMeta(meta zk.Resource) {
+	return func(c *Client) {
+		c.meta = meta
 	}
 }
 
@@ -784,9 +802,17 @@ func (c *Client) establishRegion(originalReg *regioninfo.Info, host string, port
 			}
 		}
 		if c.clientType == AdminClient {
-			host, port, err = c.zkLookup(ctx, zk.Master)
+			if c.master == (zk.ResourceName)("") {
+				host, port, err = c.zkLookup(ctx, zk.Master)
+			} else {
+				host, port, err = c.zkLookup(ctx, c.master)
+			}
 		} else if reg == c.metaRegionInfo {
-			host, port, err = c.zkLookup(ctx, zk.Meta)
+			if c.meta == (zk.ResourceName)("") {
+				host, port, err = c.zkLookup(ctx, zk.Meta)
+			} else {
+				host, port, err = c.zkLookup(ctx, c.meta)
+			}
 		} else {
 			reg, host, port, err = c.locateRegion(ctx, originalReg.Table, originalReg.StartKey)
 		}
