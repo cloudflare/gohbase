@@ -273,14 +273,14 @@ func Admin() Option {
 }
 
 // Options for specifying master resource name (e.g. "/hbase/master")
-func SetMaster(master zk.ResourceName) {
+func SetMaster(master zk.ResourceName) Option {
 	return func(c *Client) {
 		c.master = master
 	}
 }
 
 // Options for specifying meta resource name (e.g. "/hbase/meta-region-server")
-func SetMeta(meta zk.ResourceName) {
+func SetMeta(meta zk.ResourceName) Option {
 	return func(c *Client) {
 		c.meta = meta
 	}
