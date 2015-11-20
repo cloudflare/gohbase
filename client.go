@@ -247,6 +247,12 @@ func NewClient(zkquorum string, options ...Option) *Client {
 	for _, option := range options {
 		option(c)
 	}
+	if c.master == (zk.ResourceName)("") {
+		c.master = zk.ResourceName("/hbase/master")
+	}
+	if c.meta == (zk.ResourceName)("") {
+		c.meta = zk.ResourceName("/hbase/meta-region-server")
+	}
 	return c
 }
 
