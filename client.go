@@ -808,17 +808,9 @@ func (c *Client) establishRegion(originalReg *regioninfo.Info, host string, port
 			}
 		}
 		if c.clientType == AdminClient {
-			if c.master == (zk.ResourceName)("") {
-				host, port, err = c.zkLookup(ctx, zk.Master)
-			} else {
-				host, port, err = c.zkLookup(ctx, c.master)
-			}
+			host, port, err = c.zkLookup(ctx, c.master)
 		} else if reg == c.metaRegionInfo {
-			if c.meta == (zk.ResourceName)("") {
-				host, port, err = c.zkLookup(ctx, zk.Meta)
-			} else {
-				host, port, err = c.zkLookup(ctx, c.meta)
-			}
+			host, port, err = c.zkLookup(ctx, c.meta)
 		} else {
 			reg, host, port, err = c.locateRegion(ctx, originalReg.Table, originalReg.StartKey)
 		}
