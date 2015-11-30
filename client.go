@@ -278,7 +278,8 @@ func Admin() Option {
 	}
 }
 
-// Option for specifying ZooKeeper path (e.g. "/hbase")
+// ZKPath will return an option that will set the ZooKeeper resources to
+// reference for the HBase master and meta region server
 func ZKPath(zkPath string) Option {
 	return func(c *Client) {
 		c.master = (zk.ResourceName)(zkPath + "/master")
