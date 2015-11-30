@@ -278,17 +278,11 @@ func Admin() Option {
 	}
 }
 
-// Options for specifying master resource name (e.g. "/hbase/master")
-func SetMaster(master zk.ResourceName) Option {
+// Option for specifying ZooKeeper path (e.g. "/hbase")
+func ZKPath(zkPath string) Option {
 	return func(c *Client) {
-		c.master = master
-	}
-}
-
-// Options for specifying meta resource name (e.g. "/hbase/meta-region-server")
-func SetMeta(meta zk.ResourceName) Option {
-	return func(c *Client) {
-		c.meta = meta
+		c.master = (zk.ResourceName)(zkPath + "/master")
+		c.meta = (zk.ResourceName)(zkPath + "/meta-region-server")
 	}
 }
 
