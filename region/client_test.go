@@ -138,17 +138,6 @@ func TestFail(t *testing.T) {
 		}
 	}
 
-	// check if rpcs channel is closed
-	// if close(c.rpcs) is called more than once, it would panic
-	select {
-	case <-time.After(2 * time.Second):
-		t.Errorf("rpcs hasn't been closed")
-	case _, more := <-c.rpcs:
-		if more {
-			t.Error("expected rpcs to be closed")
-		}
-	}
-
 	if diff := test.Diff(expectedErr, c.err); diff != "" {
 		t.Errorf("Expected: %#v\nReceived: %#v\nDiff:%s",
 			expectedErr, c.err, diff)
@@ -175,7 +164,7 @@ func newRPCMatcher(payload string) gomock.Matcher {
 	return rpcMatcher{payload: payload}
 }
 
-func TestBufferedRPCsFail(t *testing.T) {
+func TestAwaitingRPCsFail(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -185,7 +174,7 @@ func TestBufferedRPCsFail(t *testing.T) {
 	mockConn.EXPECT().Close().Times(1)
 	c := &client{
 		conn:          mockConn,
-		rpcs:          make(chan hrpc.Call, queueSize),
+		rpcs:          make(chan hrpc.Call),
 		done:          make(chan struct{}),
 		sent:          make(map[uint32]hrpc.Call),
 		rpcQueueSize:  queueSize,
@@ -196,17 +185,15 @@ func TestBufferedRPCsFail(t *testing.T) {
 	var wgWrites sync.WaitGroup
 	// we send less calls then queueSize so that sendBatch isn't triggered
 	calls := make([]hrpc.Call, queueSize-1)
+	ctx := context.Background()
 	for i := range calls {
 		wgWrites.Add(1)
 		mockCall := mock.NewMockCall(ctrl)
 		mockCall.EXPECT().ResultChan().Return(make(chan hrpc.RPCResult, 1)).Times(1)
+		mockCall.EXPECT().Context().Return(ctx).Times(1)
 		calls[i] = mockCall
 	}
 
-	// queue calls
-	for _, call := range calls {
-		c.QueueRPC(call)
-	}
 	// process rpcs and close client in the middle of it to make sure that
 	// all queued up rpcs are processed eventually
 	var wg sync.WaitGroup
@@ -215,6 +202,11 @@ func TestBufferedRPCsFail(t *testing.T) {
 		c.processRPCs()
 		wg.Done()
 	}()
+
+	// queue calls
+	for _, call := range calls {
+		c.QueueRPC(call)
+	}
 	c.Close()
 	wg.Wait()
 	if len(c.rpcs) != 0 {
@@ -235,7 +227,7 @@ func TestQueueRPC(t *testing.T) {
 	mockConn := mock.NewMockReadWriteCloser(ctrl)
 	c := &client{
 		conn:          mockConn,
-		rpcs:          make(chan hrpc.Call, queueSize),
+		rpcs:          make(chan hrpc.Call),
 		done:          make(chan struct{}),
 		sent:          make(map[uint32]hrpc.Call),
 		rpcQueueSize:  queueSize,
@@ -258,7 +250,7 @@ func TestQueueRPC(t *testing.T) {
 		mockCall.EXPECT().Name().Return("lol").Times(1)
 		payload := fmt.Sprintf("rpc_%d", i)
 		mockCall.EXPECT().Serialize().Return([]byte(payload), nil).Times(1)
-		mockCall.EXPECT().Context().Return(ctx).Times(1)
+		mockCall.EXPECT().Context().Return(ctx).Times(2)
 		mockCall.EXPECT().ResultChan().Return(make(chan hrpc.RPCResult, 1)).Times(1)
 		calls[i] = mockCall
 
@@ -298,6 +290,7 @@ func TestQueueRPC(t *testing.T) {
 			defer wg.Done()
 			result := make(chan hrpc.RPCResult, 1)
 			mockCall := mock.NewMockCall(ctrl)
+			mockCall.EXPECT().Context().Return(ctx).Times(1)
 			mockCall.EXPECT().ResultChan().Return(result).Times(1)
 			c.QueueRPC(mockCall)
 			r := <-result
@@ -325,7 +318,7 @@ func TestUnrecoverableErrorWrite(t *testing.T) {
 	mockConn := mock.NewMockReadWriteCloser(ctrl)
 	c := &client{
 		conn:          mockConn,
-		rpcs:          make(chan hrpc.Call, queueSize),
+		rpcs:          make(chan hrpc.Call),
 		done:          make(chan struct{}),
 		sent:          make(map[uint32]hrpc.Call),
 		rpcQueueSize:  queueSize,
@@ -336,7 +329,7 @@ func TestUnrecoverableErrorWrite(t *testing.T) {
 	mockCall.EXPECT().Name().Return("lol").Times(1)
 	payload := "rpc"
 	mockCall.EXPECT().Serialize().Return([]byte(payload), nil).Times(1)
-	mockCall.EXPECT().Context().Return(context.Background()).Times(1)
+	mockCall.EXPECT().Context().Return(context.Background()).Times(2)
 	result := make(chan hrpc.RPCResult, 1)
 	mockCall.EXPECT().ResultChan().Return(result).Times(1)
 	// we expect that it eventually writes to connection
@@ -344,7 +337,7 @@ func TestUnrecoverableErrorWrite(t *testing.T) {
 	mockConn.EXPECT().Write(newRPCMatcher(payload)).Times(1).Return(0, expErr)
 	mockConn.EXPECT().Close()
 
-	c.QueueRPC(mockCall)
+	go c.QueueRPC(mockCall)
 	c.processRPCs()
 	r := <-result
 	err, ok := r.Error.(UnrecoverableError)
@@ -369,7 +362,7 @@ func TestUnrecoverableErrorRead(t *testing.T) {
 	mockConn := mock.NewMockReadWriteCloser(ctrl)
 	c := &client{
 		conn:          mockConn,
-		rpcs:          make(chan hrpc.Call, queueSize),
+		rpcs:          make(chan hrpc.Call),
 		done:          make(chan struct{}),
 		sent:          make(map[uint32]hrpc.Call),
 		rpcQueueSize:  queueSize,
@@ -416,7 +409,7 @@ func TestUnexpectedSendError(t *testing.T) {
 	mockConn := mock.NewMockReadWriteCloser(ctrl)
 	c := &client{
 		conn:          mockConn,
-		rpcs:          make(chan hrpc.Call, queueSize),
+		rpcs:          make(chan hrpc.Call),
 		done:          make(chan struct{}),
 		sent:          make(map[uint32]hrpc.Call),
 		rpcQueueSize:  queueSize,
@@ -428,7 +421,7 @@ func TestUnexpectedSendError(t *testing.T) {
 	mockCall.EXPECT().Name().Return("lol").Times(1)
 	err := errors.New("Serialize error")
 	mockCall.EXPECT().Serialize().Return(nil, err).Times(1)
-	mockCall.EXPECT().Context().Return(context.Background()).Times(1)
+	mockCall.EXPECT().Context().Return(context.Background()).Times(2)
 	result := make(chan hrpc.RPCResult, 1)
 	mockCall.EXPECT().ResultChan().Return(result).Times(1)
 
@@ -455,7 +448,7 @@ func TestSendBatch(t *testing.T) {
 	mockConn := mock.NewMockReadWriteCloser(ctrl)
 	c := &client{
 		conn:          mockConn,
-		rpcs:          make(chan hrpc.Call, queueSize),
+		rpcs:          make(chan hrpc.Call),
 		done:          make(chan struct{}),
 		sent:          make(map[uint32]hrpc.Call),
 		rpcQueueSize:  queueSize,
@@ -505,13 +498,20 @@ func TestFlushInterval(t *testing.T) {
 	mockConn := mock.NewMockReadWriteCloser(ctrl)
 	c := &client{
 		conn:          mockConn,
-		rpcs:          make(chan hrpc.Call, queueSize),
+		rpcs:          make(chan hrpc.Call),
 		done:          make(chan struct{}),
 		sent:          make(map[uint32]hrpc.Call),
 		rpcQueueSize:  queueSize,
 		flushInterval: flushInterval,
 	}
 	mockConn.EXPECT().Close()
+
+	var wgProcessRPCs sync.WaitGroup
+	wgProcessRPCs.Add(1)
+	go func() {
+		c.processRPCs()
+		wgProcessRPCs.Done()
+	}()
 
 	ctx := context.Background()
 	var wgWrites sync.WaitGroup
@@ -521,7 +521,7 @@ func TestFlushInterval(t *testing.T) {
 		mockCall.EXPECT().Name().Return("lol").Times(1)
 		payload := fmt.Sprintf("rpc_%d", i)
 		mockCall.EXPECT().Serialize().Return([]byte(payload), nil).Times(1)
-		mockCall.EXPECT().Context().Return(ctx).Times(1)
+		mockCall.EXPECT().Context().Return(ctx).Times(2)
 		mockCall.EXPECT().ResultChan().Return(make(chan hrpc.RPCResult, 1)).Times(1)
 		mockConn.EXPECT().Write(newRPCMatcher(payload)).Times(1).Return(
 			15+len(payload), nil).Do(func(buf []byte) {
@@ -529,12 +529,7 @@ func TestFlushInterval(t *testing.T) {
 		})
 		c.QueueRPC(mockCall)
 	}
-	var wgProcessRPCs sync.WaitGroup
-	wgProcessRPCs.Add(1)
-	go func() {
-		c.processRPCs()
-		wgProcessRPCs.Done()
-	}()
+
 	// test will timeout if some rpcs are never processed
 	wgWrites.Wait()
 	// clean up
@@ -542,31 +537,42 @@ func TestFlushInterval(t *testing.T) {
 	wgProcessRPCs.Wait()
 }
 
-func TestQueueSize(t *testing.T) {
+func TestRPCContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	queueSize := 10
-	flushInterval := 10000 * time.Second
+	flushInterval := 1000 * time.Second
 	mockConn := mock.NewMockReadWriteCloser(ctrl)
+	mockConn.EXPECT().Close()
 	c := &client{
 		conn:          mockConn,
-		rpcs:          make(chan hrpc.Call, queueSize),
+		rpcs:          make(chan hrpc.Call),
 		done:          make(chan struct{}),
 		sent:          make(map[uint32]hrpc.Call),
 		rpcQueueSize:  queueSize,
 		flushInterval: flushInterval,
 	}
-	mockConn.EXPECT().Close()
 
+	var wgProcessRPCs sync.WaitGroup
+	wgProcessRPCs.Add(1)
+	go func() {
+		c.processRPCs()
+		wgProcessRPCs.Done()
+	}()
+
+	var wgWrites, wgThrottle sync.WaitGroup
+	wgThrottle.Add(1)
 	ctx := context.Background()
-	var wgWrites sync.WaitGroup
-	for i := 0; i < 10; i++ {
+	for i := 0; i < queueSize; i++ {
 		wgWrites.Add(1)
 		mockCall := mock.NewMockCall(ctrl)
 		mockCall.EXPECT().Name().Return("lol").Times(1)
 		payload := fmt.Sprintf("rpc_%d", i)
-		mockCall.EXPECT().Serialize().Return([]byte(payload), nil).Times(1)
-		mockCall.EXPECT().Context().Return(ctx).Times(1)
+		// throttle write, until we push rpc with canceled contxt
+		mockCall.EXPECT().Serialize().Return([]byte(payload), nil).Times(1).Do(func() {
+			wgThrottle.Wait()
+		})
+		mockCall.EXPECT().Context().Return(ctx).Times(2)
 		mockCall.EXPECT().ResultChan().Return(make(chan hrpc.RPCResult, 1)).Times(1)
 		mockConn.EXPECT().Write(newRPCMatcher(payload)).Times(1).Return(
 			15+len(payload), nil).Do(func(buf []byte) {
@@ -574,15 +580,59 @@ func TestQueueSize(t *testing.T) {
 		})
 		c.QueueRPC(mockCall)
 	}
-	var wgProcessRPCs sync.WaitGroup
-	wgProcessRPCs.Add(1)
-	go func() {
-		c.processRPCs()
-		wgProcessRPCs.Done()
-	}()
+	ctxCancel, cancel := context.WithCancel(context.Background())
+	cancel()
+	callWithCancel := mock.NewMockCall(ctrl)
+	callWithCancel.EXPECT().Context().Return(ctxCancel).Times(1)
+	// this shouldn't block
+	c.QueueRPC(callWithCancel)
+
+	wgThrottle.Done()
+
 	// test will timeout if some rpcs are never processed
 	wgWrites.Wait()
 	// clean up
 	c.Close()
 	wgProcessRPCs.Wait()
+}
+
+func BenchmarkSendBatchMemory(b *testing.B) {
+	b.Skip("need to comment out short write detection")
+
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	mockConn := mock.NewMockReadWriteCloser(ctrl)
+	c := &client{
+		conn: mockConn,
+		rpcs: make(chan hrpc.Call),
+		done: make(chan struct{}),
+		sent: make(map[uint32]hrpc.Call),
+		// queue size is 1 so that all QueueRPC calls trigger sendBatch,
+		// and buffer slice reset
+		rpcQueueSize:  1,
+		flushInterval: 1000 * time.Second,
+	}
+
+	var wgWrites sync.WaitGroup
+	ctx := context.Background()
+	mockCall := mock.NewMockCall(ctrl)
+	mockCall.EXPECT().Name().Return("lol").AnyTimes()
+	mockCall.EXPECT().Serialize().Return([]byte("rpc"), nil).AnyTimes()
+	mockCall.EXPECT().Context().Return(ctx).AnyTimes()
+	// for this benchmark to work, need to comment out section of in c.write()
+	// that detect short writes
+	mockConn.EXPECT().Write(gomock.Any()).AnyTimes().Return(0, nil).Do(func(buf []byte) {
+		wgWrites.Done()
+	})
+
+	go c.processRPCs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for i := 0; i < 100; i++ {
+			wgWrites.Add(1)
+			c.QueueRPC(mockCall)
+		}
+		wgWrites.Wait()
+	}
+	// we don't care about cleaning up
 }
