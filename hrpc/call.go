@@ -16,7 +16,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/tsuna/gohbase/filter"
 	"github.com/tsuna/gohbase/internal/pb"
-	"golang.org/x/net/context"
+	"context"
 )
 
 // RegionInfo represents HBase region.

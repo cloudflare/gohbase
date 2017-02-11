@@ -8,7 +8,7 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	filter "github.com/tsuna/gohbase/filter"
 	hrpc "github.com/tsuna/gohbase/hrpc"
-	context "golang.org/x/net/context"
+	context "context"
 )
 
 // Mock of Call interface

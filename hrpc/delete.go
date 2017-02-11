@@ -8,7 +8,7 @@ package hrpc
 import (
 	"github.com/golang/protobuf/proto"
 	"github.com/tsuna/gohbase/internal/pb"
-	"golang.org/x/net/context"
+	"context"
 )
 
 // DeleteTable represents a DeleteTable HBase call

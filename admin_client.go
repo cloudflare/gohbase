@@ -13,7 +13,7 @@ import (
 	"github.com/tsuna/gohbase/internal/pb"
 	"github.com/tsuna/gohbase/region"
 	"github.com/tsuna/gohbase/zk"
-	"golang.org/x/net/context"
+	"context"
 )
 
 // AdminClient to perform admistrative operations with HMaster

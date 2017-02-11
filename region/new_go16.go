@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/tsuna/gohbase/hrpc"
-	"golang.org/x/net/context"
+	"context"
 )
 
 type clientResult struct {

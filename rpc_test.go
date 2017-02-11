@@ -21,7 +21,7 @@ import (
 	"github.com/tsuna/gohbase/test/mock"
 	mockZk "github.com/tsuna/gohbase/test/mock/zk"
 	"github.com/tsuna/gohbase/zk"
-	"golang.org/x/net/context"
+	"context"
 )
 
 func newMockClient(zkClient zk.Client) *client {

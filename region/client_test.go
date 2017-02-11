@@ -17,7 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/tsuna/gohbase/hrpc"
 	"github.com/tsuna/gohbase/test/mock"
-	"golang.org/x/net/context"
+	"context"
 )
 
 func TestErrors(t *testing.T) {

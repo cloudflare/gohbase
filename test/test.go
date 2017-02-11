@@ -12,7 +12,7 @@ import (
 
 	"github.com/tsuna/gohbase"
 	"github.com/tsuna/gohbase/hrpc"
-	"golang.org/x/net/context"
+	"context"
 )
 
 // CreateTable creates the given table with the given families
