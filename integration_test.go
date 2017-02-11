@@ -19,7 +19,7 @@ import (
 	"github.com/tsuna/gohbase"
 	"github.com/tsuna/gohbase/hrpc"
 	"github.com/tsuna/gohbase/test"
-	"golang.org/x/net/context"
+	"context"
 )
 
 var host = flag.String("host", "localhost", "The location where HBase is running")

@@ -15,7 +15,7 @@ import (
 	"github.com/tsuna/gohbase"
 	"github.com/tsuna/gohbase/filter"
 	"github.com/tsuna/gohbase/hrpc"
-	"golang.org/x/net/context"
+	"context"
 )
 
 // Name of the meta region.

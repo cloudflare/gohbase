@@ -13,7 +13,7 @@ import (
 
 	"github.com/tsuna/gohbase/hrpc"
 	"github.com/tsuna/gohbase/internal/pb"
-	"golang.org/x/net/context"
+	"context"
 )
 
 type testClient struct {
